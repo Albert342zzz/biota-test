@@ -9,3 +9,6 @@ next-env.d.ts
 
 # Data perusahaan tidak di-commit (lihat data/README.md)
 data/*.csv
+
+# Repo ini memakai pnpm; lockfile npm tidak dipakai
+package-lock.json

@@ -1,11 +1,26 @@
-// Mengukur dampak rupiah dari dua bug yang benar-benar terjadi di sesi ini.
-import { readFileSync } from 'node:fs';
+/**
+ * Mengukur dampak rupiah dari dua bug yang benar-benar terjadi saat mengerjakan
+ * tes ini. Dipakai untuk membuktikan angka di bagian "tiga kesalahan AI" di README.
+ *
+ *   npx tsx scripts/measure-bug-impact.ts [file.csv]
+ *
+ * Tanpa argumen, dibaca dari data/biota_orders_oct2026.csv.
+ */
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { parseCsvText } from '../lib/csv';
 import { cleanRows } from '../lib/clean';
 import { aggregate } from '../lib/aggregate';
 import { formatIDR } from '../lib/format';
 
-const text = readFileSync('/home/user/data-asli/biota_orders_oct2026.csv', 'utf8');
+const path = resolve(process.argv[2] ?? 'data/biota_orders_oct2026.csv');
+if (!existsSync(path)) {
+  console.error(`File tidak ditemukan: ${path}`);
+  console.error('Salin CSV ekspor ke data/, atau sebutkan path-nya sebagai argumen.');
+  process.exit(1);
+}
+
+const text = readFileSync(path, 'utf8');
 const p = parseCsvText(text);
 const benar = aggregate(cleanRows(p.rows, p.headers, p.mappedHeaders).lines, {}).totals.netRevenue;
 

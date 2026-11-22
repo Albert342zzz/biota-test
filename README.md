@@ -13,7 +13,7 @@ per produk, 10 produk teratas, dan bisa difilter per rentang tanggal.
 ## Angka akhir
 
 Dihasilkan dari `biota_orders_oct2026.csv` (495 baris, Oktober 2026) dengan
-perintah `npm run verify`. Angka di bawah **bukan ketikan tangan dari layar** —
+perintah `pnpm verify`. Angka di bawah **bukan ketikan tangan dari layar** —
 semuanya keluaran perintah itu.
 
 ### Total net revenue — 1–31 Oktober 2026
@@ -82,11 +82,11 @@ sama persis sampai rupiah terakhir.
 Butuh Node.js 20 atau lebih baru.
 
 ```bash
-npm install
+pnpm install
 ```
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Buka `http://localhost:3000`, lalu upload file CSV. Kalau tidak punya file
@@ -95,7 +95,7 @@ aslinya, klik **"Pakai data contoh"**.
 ### Mengecek angka dari terminal
 
 ```bash
-npm run verify -- data/biota_orders_oct2026.csv
+pnpm verify data/biota_orders_oct2026.csv
 ```
 
 Perintah ini membaca CSV lewat kode yang **persis sama** dengan yang dipakai
@@ -105,7 +105,7 @@ Gunanya supaya angka di README bisa dibuktikan, bukan dipercaya begitu saja.
 ### Menjalankan test
 
 ```bash
-npm test
+pnpm test
 ```
 
 58 test. Isinya pembacaan format rupiah dan tanggal, klasifikasi status,
@@ -117,7 +117,7 @@ Aplikasi ini **sepenuhnya berjalan di browser** — CSV tidak pernah dikirim ke
 server mana pun. Jadi bisa di-deploy sebagai situs statis:
 
 ```bash
-npm run build
+pnpm build
 ```
 
 Di Vercel: import repository ini, biarkan semua setelan default, selesai.

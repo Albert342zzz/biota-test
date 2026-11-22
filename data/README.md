@@ -14,7 +14,7 @@ data/biota_orders_oct2026.csv
 lalu jalankan:
 
 ```
-npm run verify -- data/biota_orders_oct2026.csv
+pnpm verify data/biota_orders_oct2026.csv
 ```
 
 Untuk mencoba aplikasinya tanpa data asli, pakai tombol **"Pakai data contoh"**
