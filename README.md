@@ -238,11 +238,27 @@ dan `TIKTOK SHOP` disatukan ke tiga channel. Nama yang tidak dikenali tetap
 dihitung tapi masuk kelompok "Unknown" dan dilaporkan — tidak pernah dipaksa
 masuk salah satu channel.
 
-**11. Pesanan yang belum dibayar.** Brief hanya mengecualikan yang dibatalkan dan
-diretur, jadi status "belum bayar" secara harfiah ikut dihitung. Di file ini
-**tidak ada** status seperti itu, jadi tidak berpengaruh ke angka mana pun.
-Logikanya tetap ada (dengan tombol untuk mematikannya) karena ekspor bulan
-berikutnya mungkin memuatnya.
+**11. Pesanan yang belum dibayar, dibedakan dari yang gagal bayar.** Brief hanya
+mengecualikan yang dibatalkan dan diretur, jadi status "belum bayar" secara
+harfiah ikut dihitung. Tapi "belum" dan "tidak" bukan hal yang sama:
+
+| Status | Arti | Dihitung? |
+|---|---|---|
+| `Belum Bayar`, `Menunggu Pembayaran`, `Unpaid` | Pembayaran belum terjadi, masih mungkin jadi | **Ya** (ada tombol untuk mematikannya) |
+| `Tidak Dibayar`, `Pembayaran Gagal`, `Payment Failed` | Sudah pasti tidak jadi | Tidak — diperlakukan sebagai pembatalan |
+
+Pembedaan ini penting karena bucket "belum bayar" ikut dihitung secara default;
+kalau status yang sudah pasti gagal ikut masuk ke sana, net revenue jadi lebih
+besar dari yang seharusnya. Di file Oktober 2026 **tidak ada** status seperti
+ini sama sekali, jadi tidak berpengaruh ke angka mana pun — logikanya disiapkan
+untuk ekspor bulan berikutnya.
+
+**12. Preset paruh bulan memakai bulan dari tanggal terakhir.** Ekspor bulanan
+sering memuat beberapa baris nyasar dari bulan sebelumnya. Kalau bulan acuan
+preset diambil dari tanggal pertama, satu baris nyasar saja sudah membuat tombol
+"1–15" menunjuk ke bulan yang salah dan menampilkan dashboard kosong. Label
+preset juga menyebut nama bulannya, dan preset yang tidak beririsan dengan data
+tidak ditampilkan sama sekali.
 
 ---
 

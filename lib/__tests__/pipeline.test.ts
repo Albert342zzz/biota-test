@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseCsvText } from '../csv';
 import { cleanRows } from '../clean';
 import { aggregate, filterByDateRange } from '../aggregate';
+import { buildPresets } from '../../components/DateRangeFilter';
 
 /** Helper: CSV mentah -> hasil bersih, meniru jalur yang dipakai UI. */
 function run(csv: string, opts?: Parameters<typeof cleanRows>[3]) {
@@ -333,5 +334,61 @@ describe('pipeline: format tanggal di file asli', () => {
       const csv = [HEADER, `Q1,2026-10-02 08:00,Shopee,S1,P,1,Rp1.000,Rp1.000,${raw},X`].join('\n');
       expect(run(csv).lines[0]?.status, raw).toBe(expected);
     }
+  });
+});
+
+describe('regresi: preset tanggal saat file memuat lebih dari satu bulan', () => {
+  it('bulan acuan diambil dari tanggal terakhir, bukan baris nyasar di awal', () => {
+    // Ekspor Oktober yang memuat satu baris nyasar 28 September.
+    const presets = buildPresets('2026-09-28', '2026-10-31');
+    const half = presets.find((p) => p.label.startsWith('1-15') || p.label.startsWith('1–15'));
+    expect(half).toBeDefined();
+    expect(half!.from).toBe('2026-10-01');
+    expect(half!.to).toBe('2026-10-15');
+  });
+
+  it('label menyebut nama bulan supaya tidak ambigu', () => {
+    const labels = buildPresets('2026-10-01', '2026-10-31').map((p) => p.label);
+    expect(labels[0]).toBe('Seluruh periode');
+    expect(labels.some((l) => l.includes('Okt'))).toBe(true);
+  });
+
+  it('hari terakhir dihitung dari bulannya, bukan dari tanggal data terakhir', () => {
+    // Data berhenti 20 Oktober, tapi Oktober tetap punya 31 hari.
+    const presets = buildPresets('2026-10-01', '2026-10-20');
+    const second = presets[presets.length - 1];
+    expect(second.label).toBe('16-31 Okt'.replace('-', '–'));
+    expect(second.to).toBe('2026-10-20'); // dipotong ke data yang ada
+  });
+
+  it('preset yang tidak beririsan dengan data tidak ditampilkan', () => {
+    // Data hanya 16-31 Oktober: tombol 1-15 pasti kosong, jadi disembunyikan.
+    const labels = buildPresets('2026-10-16', '2026-10-31').map((p) => p.label);
+    expect(labels.some((l) => l.startsWith('1–15'))).toBe(false);
+  });
+});
+
+describe('regresi: dua kolom memetakan ke nama kanonik yang sama', () => {
+  it('kolom dengan nama persis yang menang, bukan yang terakhir', () => {
+    const csv = [
+      'order_id,order_date,channel,sku,product_name,qty,unit_price,total,total_price,status,buyer_city',
+      'Z1,2026-10-02 08:00,Shopee,S1,P,2,Rp100.000,Rp999.999,Rp200.000,Selesai,Jakarta',
+    ].join('\n');
+    const parsed = parseCsvText(csv);
+    const { lines, stats } = cleanRows(parsed.rows, parsed.headers, parsed.mappedHeaders);
+    expect(lines[0].reportedTotal).toBe(200_000);
+    // Kolom kembar yang kalah muncul sebagai kolom tidak dipakai, bukan hilang diam-diam.
+    expect(stats.unmappedHeaders).toContain('total');
+  });
+
+  it('kalau tidak ada yang namanya persis, yang pertama muncul yang dipakai', () => {
+    const csv = [
+      'order_id,order_date,channel,sku,product_name,qty,unit_price,subtotal,total,status,buyer_city',
+      'Z2,2026-10-02 08:00,Shopee,S1,P,1,Rp100.000,Rp100.000,Rp777.777,Selesai,Jakarta',
+    ].join('\n');
+    const parsed = parseCsvText(csv);
+    const { lines, stats } = cleanRows(parsed.rows, parsed.headers, parsed.mappedHeaders);
+    expect(lines[0].reportedTotal).toBe(100_000);
+    expect(stats.unmappedHeaders).toContain('total');
   });
 });

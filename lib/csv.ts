@@ -1,7 +1,7 @@
 /** Pembacaan CSV: Papa Parse + pemetaan header ke nama kanonik. */
 
 import Papa from 'papaparse';
-import { mapHeader, type CanonicalColumn } from './normalize';
+import { mapHeader, slugifyHeader, type CanonicalColumn } from './normalize';
 import type { RawRow } from './clean';
 
 export interface ParsedCsv {
@@ -10,6 +10,37 @@ export interface ParsedCsv {
   mappedHeaders: Array<CanonicalColumn | null>;
   /** Pesan error dari parser (delimiter aneh, baris rusak, dll). */
   parseErrors: string[];
+}
+
+/**
+ * Memetakan header ke nama kanonik, dan menyelesaikan tabrakan.
+ *
+ * Satu file bisa punya dua kolom yang sama-sama berarti `total_price` — mis.
+ * `total` dan `total_price`. Sebelumnya kolom yang belakangan diam-diam
+ * menimpa yang duluan, jadi nilai yang dipakai tergantung urutan kolom di file.
+ *
+ * Aturannya sekarang: yang menang adalah kolom yang namanya PERSIS sama dengan
+ * nama kanonik; kalau tidak ada, yang pertama muncul. Kolom kembar lainnya
+ * dilepas pemetaannya sehingga muncul di daftar "kolom tidak dipakai" di panel
+ * kualitas data — terlihat, bukan diam-diam dibuang.
+ */
+export function resolveHeaderCollisions(headers: string[]): Array<CanonicalColumn | null> {
+  const mapped = headers.map(mapHeader);
+  const byColumn = new Map<CanonicalColumn, number[]>();
+  mapped.forEach((col, i) => {
+    if (!col) return;
+    const list = byColumn.get(col);
+    if (list) list.push(i);
+    else byColumn.set(col, [i]);
+  });
+
+  for (const [col, indexes] of byColumn) {
+    if (indexes.length < 2) continue;
+    const exact = indexes.find((i) => slugifyHeader(headers[i]) === col);
+    const winner = exact ?? indexes[0];
+    for (const i of indexes) if (i !== winner) mapped[i] = null;
+  }
+  return mapped;
 }
 
 export function parseCsvText(text: string): ParsedCsv {
@@ -25,7 +56,7 @@ export function parseCsvText(text: string): ParsedCsv {
   }
 
   const headers = rowsRaw[0].map((h) => (h ?? '').toString());
-  const mappedHeaders = headers.map(mapHeader);
+  const mappedHeaders = resolveHeaderCollisions(headers);
 
   const rows: RawRow[] = rowsRaw.slice(1).map((cells) => {
     const row: RawRow = {};

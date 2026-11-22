@@ -215,3 +215,48 @@ describe('mapHeader', () => {
     expect(mapHeader('catatan_pembeli')).toBeNull();
   });
 });
+
+describe('regresi: bug yang ditemukan saat audit lanjutan', () => {
+  it('spasi yang menyelip di tengah angka tidak membuat salah baca 1000x', () => {
+    // "Rp 699. 000" sempat terbaca 699 karena spasi setelah titik membuat
+    // "000" tidak dikenali sebagai kelompok ribuan.
+    expect(parseRupiah('Rp 699. 000')).toBe(699000);
+    expect(parseRupiah('Rp 1. 299. 000')).toBe(1299000);
+    expect(parseRupiah(' 699.000 ')).toBe(699000);
+  });
+
+  it('qty memakai aturan pemisah ribuan yang sama dengan kolom harga', () => {
+    // Dulu '1.000' terbaca 1 di kolom qty tapi 1.000 di kolom harga.
+    expect(parseQty('1.000')).toBe(1000);
+    expect(parseQty('1,000')).toBe(1000);
+    // Yang lama tetap harus berlaku.
+    expect(parseQty('1.0')).toBe(1);
+    expect(parseQty('1,5')).toBeNull();
+    expect(parseQty('0')).toBeNull();
+  });
+
+  it('angka lima digit yang bukan serial tanggal ditolak, bukan jadi tahun 2173', () => {
+    expect(parseOrderDate('99999')).toBeNull();
+    expect(parseOrderDate('10000')).toBeNull();
+    // Serial yang masuk akal tetap dibaca.
+    expect(parseOrderDate('46296')?.dateKey).toBe('2026-10-01');
+  });
+
+  it('jam dari serial Excel tidak pernah menjadi 24:00', () => {
+    expect(parseOrderDate('46315.99999')?.time).toBe('23:59');
+  });
+
+  it('status soal pembayaran dipisah: belum bayar vs pasti gagal bayar', () => {
+    // Dua kelompok berbeda. 'Belum Bayar' masih mungkin jadi, jadi masuk bucket
+    // pending_payment yang bisa di-toggle. 'Tidak Dibayar' / 'Pembayaran Gagal'
+    // sudah pasti tidak jadi, jadi diperlakukan sebagai pembatalan dan TIDAK
+    // pernah ikut dihitung — sekalipun toggle pending dinyalakan.
+    for (const s of ['Belum Bayar', 'Belum Dibayar', 'Unpaid', 'Menunggu Pembayaran']) {
+      expect(classifyStatus(s), s).toBe('pending_payment');
+    }
+    for (const s of ['Tidak Dibayar', 'Tidak Bayar', 'Pembayaran Gagal', 'Payment Failed']) {
+      expect(classifyStatus(s), s).toBe('cancelled');
+      expect(isNetRevenue(classifyStatus(s), { includePendingPayment: true }), s).toBe(false);
+    }
+  });
+});

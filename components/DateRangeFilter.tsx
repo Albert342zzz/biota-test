@@ -13,14 +13,49 @@ export interface Preset {
   to: string;
 }
 
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+/**
+ * Preset paruh bulan.
+ *
+ * Bulan acuannya diambil dari tanggal TERAKHIR, bukan tanggal pertama. Ekspor
+ * bulanan sering memuat beberapa baris nyasar dari bulan sebelumnya; kalau
+ * acuannya tanggal pertama, satu baris nyasar saja sudah membuat preset
+ * menunjuk ke bulan yang salah — "Tanggal 1–15" jadi menampilkan nol baris
+ * padahal datanya ada.
+ *
+ * Label menyebut nama bulannya supaya tidak ambigu saat file memuat lebih dari
+ * satu bulan, dan rentangnya dipotong agar tidak melewati data yang ada.
+ */
 export function buildPresets(min: string, max: string): Preset[] {
-  const month = min.slice(0, 7);
-  const lastDay = max.slice(8, 10);
-  return [
-    { label: 'Seluruh periode', from: min, to: max },
-    { label: 'Tanggal 1–15', from: `${month}-01`, to: `${month}-15` },
-    { label: `Tanggal 16–${lastDay}`, from: `${month}-16`, to: max },
-  ];
+  const month = max.slice(0, 7);
+  const [year, monthNo] = month.split('-').map(Number);
+  const lastDayOfMonth = new Date(Date.UTC(year, monthNo, 0)).getUTCDate();
+  const name = MONTH_SHORT[monthNo - 1] ?? month;
+
+  // Jangan pernah keluar dari rentang data yang benar-benar ada.
+  const clamp = (d: string) => (d < min ? min : d > max ? max : d);
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  const presets: Preset[] = [{ label: 'Seluruh periode', from: min, to: max }];
+
+  const firstHalf = { from: `${month}-01`, to: `${month}-15` };
+  const secondHalf = { from: `${month}-16`, to: `${month}-${pad(lastDayOfMonth)}` };
+
+  // Tampilkan sebuah preset hanya kalau rentangnya benar-benar beririsan
+  // dengan data — tombol yang pasti menghasilkan dashboard kosong lebih
+  // membingungkan daripada tidak ada tombol sama sekali.
+  if (firstHalf.from <= max && firstHalf.to >= min) {
+    presets.push({ label: `1–15 ${name}`, from: clamp(firstHalf.from), to: clamp(firstHalf.to) });
+  }
+  if (secondHalf.from <= max && secondHalf.to >= min) {
+    presets.push({
+      label: `16–${lastDayOfMonth} ${name}`,
+      from: clamp(secondHalf.from),
+      to: clamp(secondHalf.to),
+    });
+  }
+  return presets;
 }
 
 export function DateRangeFilter({

@@ -143,10 +143,15 @@ export function normalizeChannel(raw: string | null | undefined): Channel {
 const STATUS_PATTERNS: Array<[RegExp, StatusBucket]> = [
   // --- Dibatalkan -------------------------------------------------
   [/\b(batal|dibatalkan|pembatalan|cancel+ed|cancel|canceled)\b/, 'cancelled'],
-  [/\b(gagal|failed|gagal kirim|delivery failed|tidak terkirim)\b/, 'cancelled'],
+  [/\b(gagal|failed|gagal kirim|delivery failed|tidak terkirim|tidak dibayar|tidak bayar|pembayaran gagal|payment failed)\b/, 'cancelled'],
   // --- Retur / refund ---------------------------------------------
   [/\b(retur|dikembalikan|pengembalian|refund(ed)?|return(ed)?|dana dikembalikan)\b/, 'returned'],
   // --- Belum dibayar ----------------------------------------------
+  // Dibedakan dari pola "gagal bayar" di atas: yang di sini berarti pembayaran
+  // BELUM terjadi (masih mungkin jadi), sedangkan "Tidak Dibayar" / "Pembayaran
+  // Gagal" berarti sudah pasti tidak jadi dan masuk kategori dibatalkan.
+  // Pembedaan ini penting karena bucket pending_payment IKUT dihitung sebagai
+  // pendapatan secara default, sedangkan cancelled tidak pernah dihitung.
   [/\b(belum bayar|belum dibayar|menunggu pembayaran|unpaid|pending payment|waiting for payment|menunggu konfirmasi pembayaran)\b/, 'pending_payment'],
   // --- Selesai -----------------------------------------------------
   [/\b(selesai|complete(d)?|done|diterima|delivered|terkirim|pesanan selesai)\b/, 'completed'],
@@ -213,8 +218,11 @@ export function parseRupiah(raw: string | number | null | undefined): number | n
   let s = (raw ?? '').toString().trim();
   if (!s) return null;
 
-  // Buang simbol mata uang dan spasi (termasuk non-breaking space).
-  s = s.replace(/ /g, ' ').replace(/rp\.?/gi, '').replace(/idr/gi, '').trim();
+  // Buang simbol mata uang dan SELURUH spasi, termasuk yang menyelip di tengah
+  // angka. "Rp 699. 000" sebelumnya terbaca 699, bukan 699.000: spasi setelah
+  // titik membuat "000" tidak dikenali sebagai kelompok ribuan, sehingga titiknya
+  // dikira pemisah desimal. Salah baca seribu kali lipat, tanpa error.
+  s = s.replace(/\s/g, '').replace(/rp\.?/gi, '').replace(/idr/gi, '');
 
   // Notasi akuntansi: (1.000) berarti negatif.
   let negative = false;
@@ -264,11 +272,11 @@ export function parseRupiah(raw: string | number | null | undefined): number | n
 /** Mengembalikan null kalau bukan bilangan bulat positif yang masuk akal. */
 export function parseQty(raw: string | number | null | undefined): number | null {
   if (raw === null || raw === undefined || raw === '') return null;
-  const s = raw.toString().trim().replace(/ /g, '');
-  if (!s) return null;
-  // "1.0" / "1,0" dari Excel tetap berarti 1 unit.
-  const n = Number.parseFloat(s.replace(',', '.'));
-  if (!Number.isFinite(n)) return null;
+  // Memakai pembaca angka yang sama dengan kolom harga, supaya pemisah ribuan
+  // ditafsirkan konsisten. Sebelumnya "1.000" terbaca 1 di sini tapi 1.000 di
+  // kolom harga — dua kolom pada baris yang sama dibaca dengan aturan berbeda.
+  const n = parseRupiah(raw);
+  if (n === null) return null;
   if (n <= 0) return null;
   if (Math.abs(n - Math.round(n)) > 1e-9) return null; // 1,5 unit tidak valid
   return Math.round(n);
@@ -342,10 +350,17 @@ export function parseOrderDate(raw: string | number | null | undefined): ParsedD
     const ms = Math.round((serial - 25569) * 86400000);
     const dt = new Date(ms); // dibaca kembali sebagai UTC -> aman
     if (!Number.isNaN(dt.getTime())) {
+      const y = dt.getUTCFullYear();
+      const mo = dt.getUTCMonth() + 1;
+      const d = dt.getUTCDate();
+      // Angka lima digit yang bukan serial tanggal (mis. "99999") menghasilkan
+      // tahun di luar akal. Tolak, jangan diam-diam ikut dihitung.
+      if (!isRealDate(y, mo, d)) return null;
       const frac = serial - Math.floor(serial);
-      const minutes = Math.round(frac * 1440);
+      // Dibatasi 23:59 agar pembulatan tidak pernah menghasilkan "24:00".
+      const minutes = Math.min(Math.round(frac * 1440), 1439);
       return {
-        dateKey: `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`,
+        dateKey: `${y}-${pad(mo)}-${pad(d)}`,
         time: frac > 0 ? `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}` : null,
       };
     }
