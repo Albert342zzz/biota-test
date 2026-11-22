@@ -108,8 +108,9 @@ Gunanya supaya angka di README bisa dibuktikan, bukan dipercaya begitu saja.
 pnpm test
 ```
 
-58 test. Isinya pembacaan format rupiah dan tanggal, klasifikasi status,
-pemulihan SKU kosong, pembuangan baris kembar, dan batas rentang tanggal.
+69 test. Isinya pembacaan format rupiah dan tanggal, klasifikasi status,
+pemulihan SKU kosong, pembuangan baris kembar, batas rentang tanggal, dan
+sebelas test regresi untuk bug yang pernah ditemukan (lihat *Audit lanjutan*).
 
 ### Deploy
 
@@ -357,6 +358,63 @@ gagal. Kali itu test-nya memang harus berubah, karena perilakunya sengaja diubah
 — tapi keputusannya diambil dengan memeriksa kasusnya satu per satu, bukan dengan
 menyesuaikan angka sampai hijau.
 
+## Audit lanjutan: enam bug lain yang ditemukan dan diperbaiki
+
+Setelah angka akhir keluar, seluruh parser, agregasi dan penanganan input
+diperiksa ulang secara sengaja — bukan dibaca sekilas, tapi diuji dengan
+nilai-nilai pinggiran. Enam cacat lain ditemukan, semuanya sudah diperbaiki dan
+masing-masing dikunci satu test regresi.
+
+| Bug | Akibat |
+|---|---|
+| Preset paruh bulan mengambil bulan acuan dari tanggal **pertama** | Satu baris nyasar dari bulan sebelumnya membuat tombol "1–15" menunjuk bulan yang salah dan menampilkan **dashboard kosong** |
+| Spasi menyelip di tengah angka | `"Rp 699. 000"` terbaca **699**, bukan 699.000 — salah seribu kali lipat, tanpa error |
+| Status `"Tidak Dibayar"` tertangkap pola *dalam pengiriman* | Pesanan gagal bayar **dihitung sebagai pendapatan** |
+| Serial Excel tidak dibatasi rentang tahunnya | `"99999"` menjadi tanggal tahun **2173** dan ikut dihitung |
+| Dua kolom yang memetakan ke nama kanonik sama | Nilai yang dipakai bergantung pada urutan kolom di file, tanpa peringatan |
+| `parseQty` memakai aturan pemisah ribuan berbeda dari `parseRupiah` | `"1.000"` dibaca 1 di kolom jumlah tapi 1.000 di kolom harga |
+
+Dua yang pertama paling berbahaya dengan alasan yang sama seperti tiga kesalahan
+di atas: menghasilkan angka salah sambil tampil normal.
+
+Catatan jujur: perbaikan pertama untuk bug status **salah**, dan ketahuan karena
+test gagal. `"Tidak Dibayar"` sempat dipindahkan ke kelompok "belum bayar" —
+padahal kelompok itu ikut dihitung sebagai pendapatan secara default, jadi
+angkanya tetap naik. Perbaikan yang benar memisahkan "belum terjadi, masih
+mungkin jadi" dari "sudah pasti tidak jadi".
+
+Angka akhir **tidak berubah** oleh keenam perbaikan ini: file Oktober 2026
+kebetulan tidak memuat satu pun kasus tersebut. Perbaikannya untuk ekspor bulan
+berikutnya.
+
+---
+
+## Keputusan tampilan
+
+**Tidak memakai library grafik.** Donut dan bar digambar dengan SVG dan CSS
+biasa. Satu dependensi lebih sedikit untuk dipelihara dan diunduh pengunjung.
+
+**Donut produk memakai 5 teratas + "Lainnya", bukan 10 irisan.** Sepuluh irisan
+melanggar tiga hal sekaligus: lebih dari enam bagian, lebih dari tujuh kelas
+warna, dan membandingkan nilai-nilai berdekatan lewat sudut — beberapa produk
+nilainya mirip dan irisannya jadi mustahil dibedakan. Donut menjawab "berapa
+porsinya"; peringkat lengkap sepuluh produk tetap ada sebagai bar tepat di
+bawahnya, dan angka lengkapnya ada di tabel.
+
+**Warna mengikuti entitas, bukan peringkat.** Shopee selalu biru walaupun suatu
+saat bukan channel terbesar. Kalau warna mengikuti peringkat, grafiknya berganti
+warna setiap kali filter tanggal diubah.
+
+**Warna tidak pernah jadi satu-satunya penanda.** Setiap irisan donut punya baris
+legend bernama dan berangka, setiap bar punya label langsung, dan seluruh angka
+tersedia dalam bentuk tabel. Palet yang dipakai sudah dicek dengan alat pemeriksa
+keterbacaan bagi pengguna buta warna, di mode terang maupun gelap.
+
+**Mode gelap disusun, bukan dibalik.** Nilai gelapnya ditetapkan sendiri dan
+diperiksa terhadap latar gelap, bukan hasil pembalikan otomatis dari mode terang.
+
+---
+
 ## Kalau ada waktu lebih
 
 Diurutkan dari yang paling berpengaruh ke angka:
@@ -394,12 +452,20 @@ lib/              Logika murni, tanpa React. Ini yang menentukan angkanya.
   aggregate.ts      Filter tanggal, total per channel dan per produk
   format.ts         Format angka untuk tampilan
   csv.ts            Papa Parse + pencocokan nama kolom
-  __tests__/        58 test
+  __tests__/        69 test
 
-app/page.tsx      Dashboard (satu halaman, state di client)
-components/       Tile angka, bar, filter tanggal, panel kualitas data
+app/
+  page.tsx          Dashboard (satu halaman, state di client)
+  globals.css       Token warna terang/gelap + gaya tombol dan hover
+components/
+  primitives.tsx    Kartu, tile angka, baris bar
+  Donut.tsx         Donut part-to-whole (SVG inline, tanpa library grafik)
+  DateRangeFilter.tsx  Preset paruh bulan + input tanggal
+  UploadZone.tsx    Unggah CSV (versi besar dan versi ringkas di bilah atas)
+  DataQualityPanel.tsx  Daftar masalah data yang bisa dibuka per baris
 scripts/
   verify.ts              CLI pencetak angka README + pemeriksaan silang
+  measure-bug-impact.ts  Mengukur dampak rupiah dari bug yang pernah ada
   generate-sample-csv.mjs  Pembuat data contoh fiktif
 ```
 
@@ -407,14 +473,20 @@ Semua perhitungan ada di `lib/` dan tidak bergantung pada React. Itu sebabnya
 dashboard dan CLI verifier bisa memakai kode yang sama — kalau keduanya
 menghasilkan angka berbeda, berarti ada yang salah.
 
+Tidak ada library grafik. Donut dan bar digambar langsung dengan SVG dan CSS,
+jadi tidak ada dependensi tambahan yang perlu ikut dikirim ke browser.
+
 ---
 
 ## Tools AI yang dipakai
 
 | Tool | Nama dan versi model AI | Dipakai untuk |
 |---|---|---|
-| Claude Code (CLI, sesi cloud) | Claude Opus 5 (`claude-opus-5`) | Seluruh pekerjaan: logika pembersihan data, test, UI, CLI verifier, README |
+| Claude Code (sesi cloud) | Claude Opus 5 (`claude-opus-5`) | Membangun aplikasi dari nol: logika pembersihan data, test, UI, CLI verifier, README |
+| Claude Code (sesi lokal, VS Code) | Claude Opus 5 (`claude-opus-5`) | Verifikasi ulang di mesin sendiri, audit enam bug lanjutan, perapian tampilan |
+| VS Code | — | Edit dan menjalankan secara lokal |
 | Playwright (via Claude Code) | — | Menjalankan dashboard di browser sungguhan dan mencocokkan angka di layar dengan keluaran CLI |
-| Python 3 (via Claude Code) | — | Menulis ulang perhitungan dari nol sebagai pembanding independen |
+| Python 3 (via Claude Code) | — | Profiling kolom CSV asli, dan menulis ulang perhitungan dari nol sebagai pembanding independen |
 
-Log prompt lengkap ada di [`PROMPT_LOG.md`](PROMPT_LOG.md).
+Log prompt lengkap ada di [`PROMPT_LOG.md`](PROMPT_LOG.md), dan tabel yang sama
+juga tersedia di [`AI_TOOLS.md`](AI_TOOLS.md).
