@@ -295,8 +295,11 @@ export default function Page() {
             />
           </div>
 
-          {/* Dua kartu grafik berdampingan. */}
-          <div className="grid gap-5 xl:grid-cols-2">
+          {/* Dua kartu grafik berdampingan.
+              `items-start` penting: tanpa itu grid meregangkan kedua kartu
+              setinggi yang terpanjang, dan kartu channel — yang isinya cuma
+              tiga baris — menyisakan ruang kosong besar di bawahnya. */}
+          <div className="grid items-start gap-5 xl:grid-cols-2">
             <Card
               title="Net revenue per channel"
               subtitle="Donut menunjukkan porsinya; bar di bawah membandingkan besarannya."

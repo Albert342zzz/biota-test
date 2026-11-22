@@ -410,6 +410,8 @@ legend bernama dan berangka, setiap bar punya label langsung, dan seluruh angka
 tersedia dalam bentuk tabel. Palet yang dipakai sudah dicek dengan alat pemeriksa
 keterbacaan bagi pengguna buta warna, di mode terang maupun gelap.
 
+![Dashboard dalam mode gelap](docs/dashboard-gelap.png)
+
 **Mode gelap disusun, bukan dibalik.** Nilai gelapnya ditetapkan sendiri dan
 diperiksa terhadap latar gelap, bukan hasil pembalikan otomatis dari mode terang.
 
