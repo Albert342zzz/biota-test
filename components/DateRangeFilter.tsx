@@ -84,12 +84,8 @@ export function DateRangeFilter({
               key={p.label}
               type="button"
               onClick={() => onChange(p.from, p.to)}
-              className="rounded-md px-3 py-1.5 text-sm font-medium"
-              style={
-                active
-                  ? { background: 'var(--series-1)', color: '#fff' }
-                  : { boxShadow: '0 0 0 1px var(--baseline)', color: 'var(--text-secondary)' }
-              }
+              aria-pressed={active}
+              className="btn chip px-3 py-1.5 text-sm"
             >
               {p.label}
             </button>

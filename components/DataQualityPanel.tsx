@@ -137,7 +137,7 @@ export function DataQualityPanel({ result }: { result: CleanResult }) {
                 <button
                   type="button"
                   onClick={() => setOpen(isOpen ? null : code)}
-                  className="flex w-full items-start justify-between gap-4 text-left"
+                  className="row-toggle"
                 >
                   <span className="min-w-0">
                     <span className="flex items-center gap-2 text-sm font-medium">
@@ -172,7 +172,7 @@ export function DataQualityPanel({ result }: { result: CleanResult }) {
                       </thead>
                       <tbody>
                         {list.slice(0, 25).map((i, idx) => (
-                          <tr key={`${i.sourceRow}-${idx}`} style={{ borderTop: '1px solid var(--hairline)' }}>
+                          <tr key={`${i.sourceRow}-${idx}`} className="table-row" style={{ borderTop: '1px solid var(--hairline)' }}>
                             <td className="tnum px-3 py-2">{i.sourceRow}</td>
                             <td className="px-3 py-2 font-mono">{i.orderId || '—'}</td>
                             <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>

@@ -5,18 +5,37 @@ import { Card, StatTile, BarRow } from '@/components/primitives';
 import { UploadZone } from '@/components/UploadZone';
 import { DateRangeFilter } from '@/components/DateRangeFilter';
 import { DataQualityPanel } from '@/components/DataQualityPanel';
+import { Donut, type DonutSlice } from '@/components/Donut';
 import { parseCsvText } from '@/lib/csv';
 import { cleanRows } from '@/lib/clean';
 import { aggregate, dateBounds } from '@/lib/aggregate';
 import { formatDateKey, formatIDR, formatIDRCompact, formatNumber, formatPercent } from '@/lib/format';
 import type { Channel, CleanResult } from '@/lib/types';
 
+/**
+ * Warna mengikuti ENTITAS, bukan peringkatnya. Shopee selalu biru walaupun
+ * suatu saat bukan channel terbesar — kalau warna mengikuti peringkat, grafik
+ * akan berganti warna setiap kali filter tanggal diubah.
+ */
 const CHANNEL_COLOR: Record<Channel, string> = {
   Shopee: 'var(--series-1)',
   'TikTok Shop': 'var(--series-2)',
   Tokopedia: 'var(--series-3)',
   Unknown: 'var(--series-unknown)',
 };
+
+/**
+ * Slot warna untuk donut produk. Maksimal enam, tidak pernah diputar ulang:
+ * lima produk teratas plus satu irisan "Lainnya" yang abu-abu.
+ */
+const PRODUCT_SLICE_COLORS = [
+  'var(--series-1)',
+  'var(--series-2)',
+  'var(--series-3)',
+  'var(--series-4)',
+  'var(--series-5)',
+];
+const OTHER_COLOR = 'var(--series-unknown)';
 
 export default function Page() {
   const [result, setResult] = useState<CleanResult | null>(null);
@@ -92,105 +111,164 @@ export default function Page() {
     [result],
   );
 
+  const channelSlices = useMemo<DonutSlice[]>(
+    () =>
+      (agg?.byChannel ?? []).map((c) => ({
+        key: c.channel,
+        label: c.channel,
+        value: c.netRevenue,
+        color: CHANNEL_COLOR[c.channel],
+        note: `${formatNumber(c.units)} unit · ${formatNumber(c.orders)} pesanan`,
+      })),
+    [agg],
+  );
+
+  /**
+   * Donut produk: lima teratas, sisanya dilipat jadi "Lainnya".
+   *
+   * Sepuluh irisan tidak dipakai dengan sengaja — di atas enam bagian, warna
+   * mulai tidak bisa dibedakan dan membandingkan sudut jadi lebih sulit
+   * daripada membaca angka. Peringkat lengkap tetap ada pada bar di sebelahnya
+   * dan pada tabel di bawah.
+   */
+  const productSlices = useMemo<DonutSlice[]>(() => {
+    if (!agg) return [];
+    const top = agg.byProduct.slice(0, 5);
+    const rest = agg.byProduct.slice(5);
+    const slices: DonutSlice[] = top.map((p, i) => ({
+      key: p.sku,
+      label: p.productName,
+      value: p.netRevenue,
+      color: PRODUCT_SLICE_COLORS[i],
+      note: `${p.sku} · ${formatNumber(p.units)} unit`,
+    }));
+    const restTotal = rest.reduce((sum, p) => sum + p.netRevenue, 0);
+    if (restTotal > 0) {
+      slices.push({
+        key: '__lainnya__',
+        label: `Lainnya (${rest.length} SKU)`,
+        value: restTotal,
+        color: OTHER_COLOR,
+        note: `${formatNumber(rest.reduce((s, p) => s + p.units, 0))} unit`,
+      });
+    }
+    return slices;
+  }, [agg]);
+
   const maxChannel = agg ? Math.max(...agg.byChannel.map((c) => c.netRevenue), 0) : 0;
   const maxProduct = agg?.topProducts[0]?.netRevenue ?? 0;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Dashboard Penjualan BIOTA</h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            Net revenue per channel dan per produk dari ekspor Shopee, TikTok Shop dan Tokopedia.
+    <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+      {/* Bilah atas: judul di kiri, kontrol di kanan. */}
+      <header
+        className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3"
+        style={{ background: 'var(--surface-1)', boxShadow: '0 0 0 1px var(--ring)' }}
+      >
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold">Dashboard Penjualan BIOTA</h1>
+          <p className="truncate text-xs" style={{ color: 'var(--text-secondary)' }}>
+            Net revenue per channel dan per produk — Shopee, TikTok Shop, Tokopedia
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-          className="rounded-md px-3 py-1.5 text-xs font-medium"
-          style={{ boxShadow: '0 0 0 1px var(--baseline)', color: 'var(--text-secondary)' }}
-        >
-          Ganti tema
-        </button>
+        <div className="flex items-center gap-2">
+          {result && (
+            <UploadZone onFile={onFile} onSample={onSample} busy={busy} fileName={fileName} compact />
+          )}
+          <button
+            type="button"
+            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+            className="btn btn-ghost px-3 py-1.5 text-xs"
+            aria-label="Ganti tema terang atau gelap"
+          >
+            Tema
+          </button>
+        </div>
       </header>
-
-      <div className="mb-6">
-        <UploadZone onFile={onFile} onSample={onSample} busy={busy} fileName={fileName} />
-      </div>
 
       {error && (
         <div
-          className="mb-6 rounded-xl p-4 text-sm"
+          className="mb-5 rounded-xl p-4 text-sm"
           style={{ background: 'var(--surface-1)', boxShadow: '0 0 0 1px var(--status-critical)' }}
         >
           <strong style={{ color: 'var(--status-critical)' }}>Gagal memproses file.</strong> {error}
         </div>
       )}
 
-      {!result && !error && (
-        <Card title="Cara kerjanya">
-          <ol
-            className="list-decimal space-y-1.5 pl-5 text-sm"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            <li>Upload satu file CSV gabungan dari ketiga marketplace.</li>
-            <li>
-              Baris kembar dibuang, penulisan channel disatukan, format harga dan tanggal yang
-              berbeda-beda dibaca, dan kode produk yang kosong dipulihkan dari nama listing.
-            </li>
-            <li>
-              <strong>Net revenue</strong> dihitung dari pesanan yang <em>tidak</em> dibatalkan dan{' '}
-              <em>tidak</em> diretur. Pesanan selesai maupun yang masih dalam pengiriman tetap
-              dihitung.
-            </li>
-            <li>Setiap baris yang tidak dihitung muncul di panel kualitas data, bukan dibuang diam-diam.</li>
-          </ol>
-        </Card>
+      {!result && (
+        <div className="space-y-5">
+          <UploadZone onFile={onFile} onSample={onSample} busy={busy} fileName={fileName} />
+          <Card title="Cara kerjanya">
+            <ol
+              className="list-decimal space-y-1.5 pl-5 text-sm"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              <li>Upload satu file CSV gabungan dari ketiga marketplace.</li>
+              <li>
+                Baris kembar dibuang, penulisan channel disatukan, format harga dan tanggal yang
+                berbeda-beda dibaca, dan kode produk yang kosong dipulihkan dari nama listing.
+              </li>
+              <li>
+                <strong>Net revenue</strong> dihitung dari pesanan yang <em>tidak</em> dibatalkan dan{' '}
+                <em>tidak</em> diretur. Pesanan selesai maupun yang masih dalam pengiriman tetap
+                dihitung.
+              </li>
+              <li>
+                Setiap baris yang tidak dihitung muncul di panel kualitas data, bukan dibuang
+                diam-diam.
+              </li>
+            </ol>
+          </Card>
+        </div>
       )}
 
       {result && agg && bounds && range && (
-        <div className="space-y-6">
-          <Card title="Rentang tanggal" subtitle={`Data tersedia ${formatDateKey(bounds.min)} – ${formatDateKey(bounds.max)}. Kedua ujung filter ikut terhitung.`}>
-            <DateRangeFilter
-              min={bounds.min}
-              max={bounds.max}
-              from={range.from}
-              to={range.to}
-              onChange={(from, to) => setRange({ from, to })}
-            />
-            {hasPending && (
-              <label className="mt-4 flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={includePending}
-                  onChange={(e) => setIncludePending(e.target.checked)}
-                  className="mt-0.5"
-                />
-                <span style={{ color: 'var(--text-secondary)' }}>
-                  Ikut hitung pesanan yang belum dibayar. Brief hanya mengecualikan pesanan yang
-                  dibatalkan dan diretur, jadi default-nya ikut dihitung.
-                </span>
-              </label>
-            )}
-          </Card>
-
-          {/* Angka utama: tepat satu hero figure per halaman. */}
+        <div className="space-y-5">
+          {/* Angka utama + filter tanggal, berdampingan di baris paling atas. */}
           <section
-            className="rounded-xl p-5 sm:p-6"
+            className="grid gap-5 rounded-xl p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start"
             style={{ background: 'var(--surface-1)', boxShadow: '0 0 0 1px var(--ring)' }}
           >
-            <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-              Net revenue {formatDateKey(range.from)} – {formatDateKey(range.to)}
-            </p>
-            <p className="mt-1 text-5xl font-semibold tracking-tight">
-              {formatIDR(agg.totals.netRevenue)}
-            </p>
-            <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-              {formatNumber(agg.totals.units)} unit terjual · {formatNumber(agg.totals.orders)} pesanan
-            </p>
+            <div>
+              <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                Net revenue {formatDateKey(range.from)} – {formatDateKey(range.to)}
+              </p>
+              <p className="mt-1 text-4xl font-semibold tracking-tight sm:text-5xl">
+                {formatIDR(agg.totals.netRevenue)}
+              </p>
+              <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                {formatNumber(agg.totals.units)} unit terjual · {formatNumber(agg.totals.orders)}{' '}
+                pesanan
+              </p>
+            </div>
+
+            <div className="lg:border-l lg:pl-6" style={{ borderColor: 'var(--hairline)' }}>
+              <DateRangeFilter
+                min={bounds.min}
+                max={bounds.max}
+                from={range.from}
+                to={range.to}
+                onChange={(from, to) => setRange({ from, to })}
+              />
+              {hasPending && (
+                <label className="mt-4 flex max-w-sm items-start gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={includePending}
+                    onChange={(e) => setIncludePending(e.target.checked)}
+                    className="mt-0.5 cursor-pointer"
+                  />
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    Ikut hitung pesanan yang belum dibayar. Brief hanya mengecualikan pesanan yang
+                    dibatalkan dan diretur.
+                  </span>
+                </label>
+              )}
+            </div>
           </section>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* Kartu kecil pendukung, tepat di bawah angka utama. */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatTile
               label="Nilai dibatalkan"
               value={formatIDRCompact(agg.totals.excluded.cancelled)}
@@ -217,52 +295,67 @@ export default function Page() {
             />
           </div>
 
-          <Card
-            title="Net revenue per channel"
-            subtitle="Nama channel tertulis langsung di tiap bar, jadi warna bukan satu-satunya penanda."
-          >
-            <div>
-              {agg.byChannel.map((c) => (
-                <BarRow
-                  key={c.channel}
-                  label={c.channel}
-                  value={c.netRevenue}
-                  valueLabel={formatIDR(c.netRevenue)}
-                  sublabel={`${formatPercent(c.netRevenue, agg.totals.netRevenue)} · ${formatNumber(c.units)} unit · ${formatNumber(c.orders)} pesanan`}
-                  max={maxChannel}
-                  color={CHANNEL_COLOR[c.channel]}
-                  title={`${c.channel}: ${formatIDR(c.netRevenue)}, ${c.units} unit, ${c.orders} pesanan`}
-                />
-              ))}
-            </div>
-          </Card>
-
-          <Card
-            title="10 produk teratas"
-            subtitle="Diurutkan berdasarkan net revenue. Produk dikelompokkan per SKU, bukan per nama listing — satu produk bisa punya nama berbeda di tiap marketplace."
-          >
-            {agg.topProducts.length === 0 ? (
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                Tidak ada penjualan pada rentang tanggal ini.
-              </p>
-            ) : (
-              <div>
-                {agg.topProducts.map((p, i) => (
+          {/* Dua kartu grafik berdampingan. */}
+          <div className="grid gap-5 xl:grid-cols-2">
+            <Card
+              title="Net revenue per channel"
+              subtitle="Donut menunjukkan porsinya; bar di bawah membandingkan besarannya."
+            >
+              <Donut
+                slices={channelSlices}
+                totalLabel="Semua channel"
+                formatValue={formatIDR}
+                formatCenter={formatIDRCompact}
+              />
+              <div className="mt-5 border-t pt-3" style={{ borderColor: 'var(--hairline)' }}>
+                {agg.byChannel.map((c) => (
                   <BarRow
-                    key={p.sku}
-                    rank={i + 1}
-                    label={p.productName}
-                    value={p.netRevenue}
-                    valueLabel={formatIDR(p.netRevenue)}
-                    sublabel={`${formatNumber(p.units)} unit`}
-                    max={maxProduct}
-                    color="var(--series-1)"
-                    title={`${p.sku} — ${p.productName}\n${formatIDR(p.netRevenue)} · ${p.units} unit · ${p.orders} pesanan\nChannel: ${p.channels.join(', ')}${p.aliases.length ? `\nNama lain: ${p.aliases.join(' | ')}` : ''}`}
+                    key={c.channel}
+                    label={c.channel}
+                    value={c.netRevenue}
+                    valueLabel={formatIDR(c.netRevenue)}
+                    sublabel={`${formatPercent(c.netRevenue, agg.totals.netRevenue)} · ${formatNumber(c.units)} unit`}
+                    max={maxChannel}
+                    color={CHANNEL_COLOR[c.channel]}
+                    title={`${c.channel}: ${formatIDR(c.netRevenue)}, ${c.units} unit, ${c.orders} pesanan`}
                   />
                 ))}
               </div>
-            )}
-          </Card>
+            </Card>
+
+            <Card
+              title="10 produk teratas"
+              subtitle="Donut memakai 5 teratas + Lainnya agar tetap terbaca; peringkat lengkap ada pada bar di bawahnya."
+            >
+              <Donut
+                slices={productSlices}
+                totalLabel="Semua produk"
+                formatValue={formatIDR}
+                formatCenter={formatIDRCompact}
+              />
+              <div className="mt-5 border-t pt-3" style={{ borderColor: 'var(--hairline)' }}>
+                {agg.topProducts.length === 0 ? (
+                  <p className="py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    Tidak ada penjualan pada rentang tanggal ini.
+                  </p>
+                ) : (
+                  agg.topProducts.map((p, i) => (
+                    <BarRow
+                      key={p.sku}
+                      rank={i + 1}
+                      label={p.productName}
+                      value={p.netRevenue}
+                      valueLabel={formatIDR(p.netRevenue)}
+                      sublabel={`${formatNumber(p.units)} unit`}
+                      max={maxProduct}
+                      color="var(--series-1)"
+                      title={`${p.sku} — ${p.productName}\n${formatIDR(p.netRevenue)} · ${p.units} unit · ${p.orders} pesanan\nChannel: ${p.channels.join(', ')}${p.aliases.length ? `\nNama lain: ${p.aliases.join(' | ')}` : ''}`}
+                    />
+                  ))
+                )}
+              </div>
+            </Card>
+          </div>
 
           <Card
             title="Semua produk"
@@ -271,7 +364,9 @@ export default function Page() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--baseline)' }}>
+                  <tr
+                    style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--baseline)' }}
+                  >
                     <th className="px-2 py-2 text-left font-medium">SKU</th>
                     <th className="px-2 py-2 text-left font-medium">Produk</th>
                     <th className="px-2 py-2 text-right font-medium">Net revenue</th>
@@ -282,10 +377,16 @@ export default function Page() {
                 </thead>
                 <tbody>
                   {agg.byProduct.map((p) => (
-                    <tr key={p.sku} style={{ borderBottom: '1px solid var(--hairline)' }}>
+                    <tr
+                      key={p.sku}
+                      className="table-row"
+                      style={{ borderBottom: '1px solid var(--hairline)' }}
+                    >
                       <td className="px-2 py-2 font-mono text-xs whitespace-nowrap">{p.sku}</td>
                       <td className="px-2 py-2">{p.productName}</td>
-                      <td className="tnum px-2 py-2 text-right font-medium">{formatIDR(p.netRevenue)}</td>
+                      <td className="tnum px-2 py-2 text-right font-medium">
+                        {formatIDR(p.netRevenue)}
+                      </td>
                       <td className="tnum px-2 py-2 text-right">{formatNumber(p.units)}</td>
                       <td className="tnum px-2 py-2 text-right">{formatNumber(p.orders)}</td>
                       <td className="px-2 py-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -299,9 +400,15 @@ export default function Page() {
                     <td className="px-2 py-2 font-semibold" colSpan={2}>
                       Total
                     </td>
-                    <td className="tnum px-2 py-2 text-right font-semibold">{formatIDR(agg.totals.netRevenue)}</td>
-                    <td className="tnum px-2 py-2 text-right font-semibold">{formatNumber(agg.totals.units)}</td>
-                    <td className="tnum px-2 py-2 text-right font-semibold">{formatNumber(agg.totals.orders)}</td>
+                    <td className="tnum px-2 py-2 text-right font-semibold">
+                      {formatIDR(agg.totals.netRevenue)}
+                    </td>
+                    <td className="tnum px-2 py-2 text-right font-semibold">
+                      {formatNumber(agg.totals.units)}
+                    </td>
+                    <td className="tnum px-2 py-2 text-right font-semibold">
+                      {formatNumber(agg.totals.orders)}
+                    </td>
                     <td />
                   </tr>
                 </tfoot>

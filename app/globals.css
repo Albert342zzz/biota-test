@@ -18,6 +18,8 @@
   --series-1: #2a78d6;
   --series-2: #eb6834;
   --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
   --series-unknown: #898781;
   --track: #cde2fb;
   --status-good: #0ca30c;
@@ -39,6 +41,8 @@
     --series-1: #3987e5;
     --series-2: #d95926;
     --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
     --track: #184f95;
   }
 }
@@ -56,6 +60,8 @@
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
   --track: #184f95;
 }
 
@@ -69,4 +75,153 @@ body {
 /* Angka dalam kolom tabel harus sejajar; angka besar berdiri sendiri tidak. */
 .tnum {
   font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ *
+ * Kontrol: tombol, chip filter, dan baris yang bisa diklik.
+ *
+ * Dikumpulkan di sini sebagai kelas, bukan inline style, karena :hover,
+ * :focus-visible dan :active tidak bisa dinyatakan lewat atribut style.
+ * Warna hover diturunkan dari token yang sama dengan keadaan normalnya,
+ * sehingga mode terang dan gelap ikut menyesuaikan tanpa nilai tambahan.
+ * ------------------------------------------------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease,
+    color 0.15s ease,
+    filter 0.15s ease;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--series-1);
+  outline-offset: 2px;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Tombol utama: biru penuh. */
+.btn-primary {
+  background: var(--series-1);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+/* Tombol sekunder: hanya garis tepi, hover memberi wash tipis. */
+.btn-ghost {
+  box-shadow: 0 0 0 1px var(--baseline);
+  color: var(--text-secondary);
+  background: transparent;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--series-1) 8%, transparent);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 1px var(--series-1);
+}
+
+/* Chip rentang tanggal. Keadaan aktif ditandai juga oleh teks tebal,
+   bukan warna saja. */
+.chip {
+  box-shadow: 0 0 0 1px var(--baseline);
+  color: var(--text-secondary);
+  background: transparent;
+}
+.chip:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--series-1) 8%, transparent);
+  color: var(--text-primary);
+}
+.chip[aria-pressed='true'] {
+  background: var(--series-1);
+  color: #fff;
+  box-shadow: none;
+  font-weight: 600;
+}
+.chip[aria-pressed='true']:hover {
+  background: var(--series-1);
+  filter: brightness(0.92);
+}
+
+/* Baris legend donut: bisa di-hover untuk menyorot irisannya. */
+.legend-row {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 0.625rem;
+  border-radius: 0.375rem;
+  padding: 0.3rem 0.5rem;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  transition: background-color 0.15s ease;
+}
+.legend-row:hover,
+.legend-row:focus-visible {
+  background: color-mix(in oklab, var(--text-primary) 6%, transparent);
+  outline: none;
+}
+
+/* Baris yang bisa dibuka di panel kualitas data. */
+.row-toggle {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  margin: -0.25rem -0.5rem;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  transition: background-color 0.15s ease;
+}
+.row-toggle:hover,
+.row-toggle:focus-visible {
+  background: color-mix(in oklab, var(--text-primary) 6%, transparent);
+  outline: none;
+}
+
+/* Baris tabel produk. */
+.table-row {
+  transition: background-color 0.12s ease;
+}
+.table-row:hover {
+  background: color-mix(in oklab, var(--text-primary) 4%, transparent);
+}
+
+/* Baris bar: menyorot saat kursor lewat, agar terasa bisa dibaca per baris. */
+.bar-row {
+  border-radius: 0.375rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  margin-left: -0.5rem;
+  margin-right: -0.5rem;
+  transition: background-color 0.12s ease;
+}
+.bar-row:hover {
+  background: color-mix(in oklab, var(--text-primary) 4%, transparent);
+}
+
+/* Area unggah saat file diseret ke atasnya. */
+.dropzone {
+  transition:
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
 }

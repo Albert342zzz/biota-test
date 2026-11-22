@@ -99,7 +99,7 @@ export function BarRow({
 }) {
   const pct = max > 0 ? Math.max(value / max, 0) * 100 : 0;
   return (
-    <div className="group grid grid-cols-[1fr_auto] items-baseline gap-x-4 gap-y-1 py-2" title={title}>
+    <div className="bar-row group grid grid-cols-[1fr_auto] items-baseline gap-x-4 gap-y-1 py-2" title={title}>
       <div className="flex min-w-0 items-baseline gap-2">
         {rank !== undefined && (
           <span className="tnum w-5 shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
